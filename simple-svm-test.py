@@ -71,13 +71,16 @@ class SVM:
         # exit()
 
         # X_train = X_train.drop(['face_height', 'face_width', 'face_x_center', 'face_y_center', 'yaw'], axis=1)
-        X_train = X_train.drop(['face_height', 'face_width'], axis=1)
+        # X_train = X_train.drop(['face_height', 'face_width'], axis=1)
 
         svclassifier.fit(X_train, y_train.values.ravel())  # use ravel to correct shape
         return svclassifier
 
     # need to take in raw data because we need to know which rows have 'NA'
     def predict_accuracy_on_data(self, svclassifier, X_test, y_test):
+        print(X_test.shape)
+        print(y_test.shape)
+
         # must iterate one row at a time to set predictions for 'NA' rows (attn == 0)
         print('[Predicting accuracy]...')
         y_prediction= []
@@ -88,7 +91,7 @@ class SVM:
             # row_X = row.drop(['frame_num']).drop(['subdir'])  # need to drop these before checking for valid row
             # check if valid row
             if self.is_valid_row(row):
-                row = np.array(row).reshape(-1,5)
+                row = np.array(row).reshape(-1,7)
                 y_pred_single = svclassifier.predict(row)[0]  # predict returns a list, so take first entry
             else:
                 # print('non valid row found!')
@@ -106,8 +109,12 @@ class SVM:
         y_prediction = pd.DataFrame(y_prediction)
 
         # check accuracy here
+
+        print(y_prediction.shape)
+        print(y_test.shape)
+
         print(classification_report(y_test, y_prediction))
-        # print(confusion_matrix(y_test, y_prediction))
+        print(confusion_matrix(y_test, y_prediction))
 
 ### ----- helper functions
 
@@ -123,7 +130,7 @@ class SVM:
     def normalize_test_data(self, X_test):
         X_test = X_test.drop(['subdir', 'frame_num'], axis=1)
 
-        X_test = X_train.drop(['face_height', 'face_width'], axis=1)
+        # X_test = X_train.drop(['face_height', 'face_width'], axis=1)
 
         for column in X_test.columns:
             # calc mean and std
@@ -134,6 +141,7 @@ class SVM:
         return X_test
 
     def normalize(self, X_data):
+
         # for each column in DF
         for column in X_data.columns:
             # calc mean and std
