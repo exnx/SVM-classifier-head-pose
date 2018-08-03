@@ -7,6 +7,7 @@ from imutils import face_utils
 import numpy as np
 import time
 import math
+import utils
 
 class Annotation:
 
@@ -31,36 +32,6 @@ class Annotation:
                     annotation_rows.append(new_row)
 
         return annotation_rows
-
-    def get_all_predicted_labels(self, predicted_labels_path):
-
-        pred_label_rows = []
-
-        with open(predicted_labels_path, "rt") as file:
-            # reader is all the rows loaded into memory at the beginning
-            reader = csv.reader(file, delimiter=' ')
-
-            # iterate through rows
-            for row in reader:
-                if row:  # only take care of empty rows
-                    # strip white space from each entry
-                    new_row = [entry.strip() for entry in row]
-
-                    pred_label_rows.append(new_row)
-        return pred_label_rows
-
-    def get_single_predicted_label(self, predicted_label_rows, subdir, frame_num):
-        label_matches = []  # return this later
-        match_found = False
-
-        # iterate through all rows
-        for row in predicted_label_rows:
-            if len(row) > 2 and row[0] == subdir and row[1] == frame_num:
-                label_matches.append(row[9])
-                match_found = True
-                print('match is found!')
-
-        return match_found, label_matches  # return the matches
 
 class Display:
 
@@ -109,7 +80,7 @@ class Display:
                 # print(relative_path)
         return frames_set
 
-    def display_frames(self, frames_path, annotations_path, predicted_labels_path):
+    def display_frames(self, frames_path, annotations_path):
         print('[Preparing data to display]...')
         exclude_prefixes = ('__', '.')  # exclusion prefixes
 
@@ -118,7 +89,6 @@ class Display:
 
         annotator = Annotation()
         annotation_rows = annotator.get_annotation_rows(annotations_path)
-        predicted_labels_rows = annotator.get_all_predicted_labels(predicted_labels_path)
 
         # iterate through each annotation row
         for annotation_row_data in annotation_rows:
@@ -128,40 +98,74 @@ class Display:
             annotation_row_name = subdir + '/' + frame_num
 
             if annotation_row_name in frames_set:
-                # create path with full format to find frame
-                formatted_frame_num = str(frame_num).zfill(4) + '.jpg'
+
+                frame_num_len = len(str(frame_num))
+
+                # need to append .jpg to frame num, which has either 4 or 5 digits
+                if frame_num_len < 5:  # less than 10k frames in subdir
+                    formatted_frame_num = formatted_frame_num = str(frame_num).zfill(4) + '.jpg'
+                elif frame_num_len > 4:  # might be 10k+ frames in a subdir
+                    formatted_frame_num = str(frame_num) + '.jpg'
+
                 file_path = '/'.join([frames_path, subdir, formatted_frame_num])
 
+                # 0 - subdir
+                # 1 - frame_num
+                # 2 - face_startX
+                # 3 - face_startY
+                # 4 - face_endX
+                # 5 - face_endY
+                # 6 - face_height # normalized
+                # 7 - face_width # normalized
+                # 8 - face_x_center # normalized
+                # 9 -face_y_center # normalized
+                # 10 - yaw  # normalized
+                # 11 - pitch # normalized
+                # 12 - roll # normalized
+                # 13 - raw_yaw
+                # 14 raw_pitch
+                # 15 - raw_roll
+                # 16 - predicted_label
+                # 17 - attention_label
+
                 face_bounding_box = annotation_row_data[2:6]  # get face bb
-                roll, pitch, yaw = annotation_row_data[6:9]  # get the head pose angles
-                attention_label = 'None'
+                roll, pitch, yaw = annotation_row_data[13:16]  # get the head pose angles
+                predicted_label = annotation_row_data[16]
+                actual_label = annotation_row_data[17]
 
                 # load the frame itself
                 frame = self.load_frame(file_path)
 
                 # if face box given, mark it up on image
-                if face_bounding_box[0] != 'NA':
-                    startX = int(face_bounding_box[0])
-                    startY = int(face_bounding_box[1])
-                    endX = int(face_bounding_box[2])
-                    endY = int(face_bounding_box[3])
+                if face_bounding_box[0] != 'nan':
+
+                    startX = int(float((face_bounding_box[0])))
+                    startY = int(float((face_bounding_box[1])))
+                    endX = int(float((face_bounding_box[2])))
+                    endY = int(float((face_bounding_box[3])))
+
+                    face_height = endY - startY
 
                     cv2.rectangle(frame, (startX, startY), (endX, endY),
                         (0, 0, 255), 2)
-                    head_pose_text = ', '.join([roll, pitch, yaw])
-                    cv2.putText(frame, head_pose_text, (startX, startY-20), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 255), 1)
 
-                    # get the predicted label
-                    label_match, labels_in_frame = annotator.get_single_predicted_label(predicted_labels_rows, subdir, frame_num)
-                    # draw the predicted attention label
-                    if label_match:  # if labels found, display each one at the same time
-                        all_labels_text = ''
-                        for label in labels_in_frame: # loop through all labels
-                            all_labels_text = all_labels_text + label + ' '  # create text of all labels
-                    else:
-                        all_labels_text = 'no label found'
-                    # display the label on frame
-                    cv2.putText(frame, str(all_labels_text), (10, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 0, 255), 1)
+                    if roll != 'nan':  # if there is a head pose
+
+                        yaw_int = int(float(yaw))
+                        pitch_int = int(float(pitch))
+                        roll_int = int(float(roll))
+                        # draw the axis
+                        utils.draw_axis(frame, yaw_int, pitch_int, roll_int, tdx = (startX + endX)/2, tdy= (startY + endY)/2, size = face_height/2)
+
+                        head_pose_text = 'yaw, pitch, roll:  ' + ', '.join([yaw, pitch, roll])
+                        cv2.putText(frame, head_pose_text, (startX, startY-60), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+
+                        predicted_text = 'predicted: ' + str(predicted_label)
+                        actual_text = 'actual: ' + str(actual_label)
+
+                        # display the actual and predicted label on frame
+                        cv2.putText(frame, predicted_text, (startX, startY-35), cv2.FONT_HERSHEY_SIMPLEX, .8, (255, 0, 0), 2)
+                        cv2.putText(frame, actual_text, (startX, startY-5), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2)
 
                 # if no face box, then display NA in left corner
                 else:
@@ -170,15 +174,15 @@ class Display:
                 # show the output image
                 cv2.imshow("{}".format(file_path), frame)
                 key = cv2.waitKey(0) & 0xFF
+                cv2.destroyAllWindows()
 
 
-def main(test_frames_path, annotations_path, predicted_labels_path):
+def main(test_frames_path, annotations_path):
     displayer = Display()
-    displayer.display_frames(test_frames_path, annotations_path, predicted_labels_path)
+    displayer.display_frames(test_frames_path, annotations_path)
 
 if __name__ == "__main__":
     test_frames_path = 'test-frames'
-    annotations_path = 'annotation_sub_label.csv'
-    predicted_labels_path = 'predicted_labels.csv'
+    annotations_path = 'predicted_labels6.csv'
     frame_size = (1080,1920)
-    main(test_frames_path, annotations_path, predicted_labels_path)
+    main(test_frames_path, annotations_path)
