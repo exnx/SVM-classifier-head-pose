@@ -137,6 +137,10 @@ class SVM:
             y_pred_single = None
             y_test_single = int(y_test_raw.loc[index][0])  # grab the actual label
 
+            # test
+            if y_test_single == 1 or y_test_single == 2:
+                y_test_single = 2
+
             # grab the relevant feature columns for predicting
             X_row = row[['face_height','face_width','face_x_center','face_y_center','yaw','pitch','roll']]
             new_num_cols = X_row.shape[0]
@@ -145,6 +149,10 @@ class SVM:
             if self.is_valid_row(X_row):
                 X_row = np.array(X_row).reshape(-1,new_num_cols)  # reshape with updated num of cols
                 y_pred_single = svclassifier.predict(X_row)[0]  # predict returns a list, so take first entry
+
+                # test
+                if y_pred_single == 1 or y_pred_single == 2:
+                    y_pred_single = 2
 
             else:
                 # print('non valid row found!')
