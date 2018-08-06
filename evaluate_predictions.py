@@ -27,5 +27,5 @@ def class_report(predictions, actuals):
     print(classification_report(predictions, actuals))
     print(confusion_matrix(predictions, actuals))
 
-predictions, actuals = read_labels('predicted_labels5.csv')
+predictions, actuals = read_labels('predicted_RF_labels.csv')
 class_report(predictions, actuals)

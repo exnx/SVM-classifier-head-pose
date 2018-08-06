@@ -6,6 +6,7 @@ import math
 import csv
 from sklearn.metrics import classification_report, confusion_matrix
 import os
+from sklearn.ensemble import RandomForestClassifier
 
 def create_test_houses_list(file_path):
     with open(file_path, "r") as f:
@@ -15,7 +16,7 @@ def create_test_houses_list(file_path):
             hh_list.append(line)
     return hh_list
 
-class SVM:
+class RandomForest:
 
     def __init__(self, output_name):
         # if existing predictor file exists, remove it
@@ -97,10 +98,10 @@ class SVM:
         X_test_raw['raw_pitch'] = X_test_raw['pitch']
         X_test_raw['raw_roll'] = X_test_raw['roll']
 
-        # normalize the X feature data, but keep the meta data
-        X_train_norm = self.normalize_test_data(X_test_raw)
+        # # normalize the X feature data, but keep the meta data
+        # X_train_norm = self.normalize_test_data(X_test_raw)
 
-        return X_train_norm, y_test_raw
+        return X_test_raw, y_test_raw
 
     def preprocess_training_data(self, training_data, one_to_two):
         print('[Preprocessing format for training]...')
@@ -113,20 +114,20 @@ class SVM:
         # remove the meta data from the feature vectors
         X_train_no_meta = self.drop_meta_data(X_train_raw)
 
-        # normalize the data
-        X_train_norm = self.normalize_train(X_train_no_meta)
+        # # normalize the data
+        # X_train_norm = self.normalize_train(X_train_no_meta)
 
-        return (X_train_norm, y_train_raw)
+        return (X_train_no_meta, y_train_raw)
 
-    def train_svm(self, X_train, y_train):
+    def train_random_forest(self, X_train, y_train):
         # data is now ready to train SVM
-        print('[Training SVC ]...')
-        svclassifier = SVC(kernel='linear')
-        svclassifier.fit(X_train, y_train.values.ravel())  # use ravel to correct shape
-        return svclassifier
+        print('[Training Random Forest ]...')
+        RF_classifier = RandomForestClassifier()
+        RF_classifier.fit(X_train, y_train.values.ravel())  # use ravel to correct shape
+        return RF_classifier
 
     # need to take in raw data because we need to know which rows have 'NA'
-    def predict_accuracy_on_data(self, svclassifier, X_test_processed, y_test_raw, output_name, test_hh):
+    def predict_accuracy_on_data(self, RF_classifier, X_test_processed, y_test_raw, output_name, test_hh):
         # must iterate one row at a time to set predictions for 'NA' rows (attn == 0)
         print('[Predicting accuracy]...')
         y_prediction = []
@@ -144,7 +145,7 @@ class SVM:
             # check if valid row
             if self.is_valid_row(X_row):
                 X_row = np.array(X_row).reshape(-1,new_num_cols)  # reshape with updated num of cols
-                y_pred_single = svclassifier.predict(X_row)[0]  # predict returns a list, so take first entry
+                y_pred_single = RF_classifier.predict(X_row)[0]  # predict returns a list, so take first entry
 
             else:
                 # print('non valid row found!')
@@ -197,9 +198,9 @@ class SVM:
 
         # testing if changing 1 to 2s is better
         if one_to_two:
-            y_train_fixed = y_train.replace(1,2)
+            y_train = y_train.replace(1,2)
 
-        return (X_train, y_train_fixed)
+        return (X_train, y_train)
 
     def normalize_test_data(self, X_test):
 
@@ -235,10 +236,10 @@ class SVM:
 test_hh_list = create_test_houses_list('formatted_households.txt')
 
 # output the predicted labels for each sample
-output_name = 'predicted_labels7.csv'
-test = SVM(output_name)
+output_name = 'predicted_RF_labels.csv'
+test = RandomForest(output_name)
 
-one_to_two = True
+one_to_two = False
 
 # iterate through each house as the test holdout
 for test_hh in test_hh_list:
@@ -252,10 +253,10 @@ for test_hh in test_hh_list:
     # preprocess training data for training svc
     X_train, y_train = test.preprocess_training_data(train_data, one_to_two)
     # train svm
-    svc_classifier = test.train_svm(X_train, y_train)
+    RF_classifier = test.train_random_forest(X_train, y_train)
 
     # preprocess test data, includes normalizing, and adding meta data for csv output
     X_test_processed, y_test_raw = test.preprocess_test_data(test_data, one_to_two)
 
     # test accuracy with a holdout for validation
-    test.predict_accuracy_on_data(svc_classifier, X_test_processed, y_test_raw, output_name, test_hh)
+    test.predict_accuracy_on_data(RF_classifier, X_test_processed, y_test_raw, output_name, test_hh)
